@@ -16,9 +16,29 @@
 .PARAMETER SecurityFindUser
     Find a specfic user account
 .PARAMETER SecurityFindRdpLogins
-    Find RDP login events in the Security log 
+    Find RDP login events in the Security log (type 10)
+.PARAMETER SecurityFindConsoleLogins
+    Find console login events in the Security log (type 2)
+.PARAMETER SecurityFindIp
+    Find a specific login IP address
+.PARAMETER SecurityNtlmPassTheHash
+    Potential evidence of pass-the-hash
+.PARAMETER SecurityNtlmGroupByUsers
+    Group by NTLM users
+.PARAMETER SecurityGroupByUsers
+    Group by NTLM username logon count
+.PARAMETER SecurityGroupByDomain
+    Group by domain logon count
+.PARAMETER SecurityGroupyByAuthenticationPackage
+    Group by authentication package logon count
+.PARAMETER SecurityGroupyByLoginType
+    Group by login type logon count
+.PARAMETER SecurityGroupyByWorkstationName
+    Group by workstation name logon count
+.PARAMETER SecurityGroupyByProcessName
+    Group by process name logon count
 .EXAMPLE
-    Invoke-LogParser.ps1 -SecurityFindEventId -Event 6281
+    Invoke-LogParser.ps1 -SecurityFindEventId 6281
 
     Searches the Securty event log for the 6281 event ID
 .NOTES
@@ -26,10 +46,10 @@
     
     As of this writing the latest version of LogParser.exe version 2.2 can be download from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 
-    Version 1.0.0
+    Version 1.0.1
     Sam Pursglove
     expOse (all LogParser.exe SQL queries)
-    Last modified: 18 June 2022
+    Last modified: 22 June 2022
 #>
 
 [CmdletBinding(DefaultParameterSetName='FindEventId')]
@@ -54,9 +74,49 @@ param (
     [String]
     $SecurityFindUser,
 
-    [Parameter(ParameterSetName='FindRdpLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find RDP login events in the security log')]
+    [Parameter(ParameterSetName='FindRdpLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find RDP login events in the security log (type 10)')]
     [Switch]
     $SecurityFindRdpLogins,
+
+    [Parameter(ParameterSetName='FindConsoleLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find console login events in the security log (type 2)')]
+    [Switch]
+    $SecurityFindConsoleLogins,
+
+    [Parameter(ParameterSetName='FindIp', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific IP address')]
+    [String]
+    $SecurityFindIp,
+
+    [Parameter(ParameterSetName='NtlmPassTheHash', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Look for potential evidence of pass-the-hash')]
+    [Switch]
+    $SecurityNtlmPassTheHash,
+
+    [Parameter(ParameterSetName='NtlmGroupByUsers', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by NTLM username')]
+    [Switch]
+    $SecurityNtlmGroupByUsers,
+
+    [Parameter(ParameterSetName='GroupByUsers', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by username logon count')]
+    [Switch]
+    $SecurityGroupByUsers,
+
+    [Parameter(ParameterSetName='GroupByDomain', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by domain logon count')]
+    [Switch]
+    $SecurityGroupByDomain,
+
+    [Parameter(ParameterSetName='GroupByAuthenticationPackage', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by authentication package logon count')]
+    [Switch]
+    $SecurityGroupyByAuthenticationPackage,
+
+    [Parameter(ParameterSetName='GroupByLoginType', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by login type logon count')]
+    [Switch]
+    $SecurityGroupyByLoginType,
+    
+    [Parameter(ParameterSetName='GroupByWorkstationName', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by workstatio name logon count')]
+    [Switch]
+    $SecurityGroupByWorkstationName,
+    
+    [Parameter(ParameterSetName='GroupByProcessName', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by process name logon count')]
+    [Switch]
+    $SecurityGroupyByProcessName,
 
     [Parameter(Mandatory=$False, ValueFromPipeline=$False, HelpMessage='The evtx log file path')]
     [String]
@@ -106,6 +166,7 @@ function Check-Privileges {
 # Hard coded LogParser.exe Options
 $Options  = '-stats:OFF', '-i:EVT', '-q:ON', '-o:CSV'
 
+# "C:\Program Files (x86)\Log Parser*\LogParser.exe" '-stats:OFF', '-i:EVT', '-q:ON', '-o:CSV'
 
 # Event Logs
 $SecurityEventLog=            '.\Security.evtx'
@@ -131,11 +192,11 @@ Check-Privileges
 
 #$Query = "SELECT * FROM .\Security.evtx WHERE EventID = $SecurityFindEventId"
 
-# Find an event ID
+# Find a security event ID
 if($SecurityFindEventId -gt 0) {
     $Query = "SELECT * FROM .\Security.evtx WHERE EventID = $SecurityFindEventId"
 
-# Show event IDs in the Security event log sorted by count
+# !!!Need to finish!!! Find multiple security event IDs 
 } elseif($SecurityFindEventIds) {
     $Query = "SELECT * FROM $SecurityEventLog WHERE EventID IN (4634; 4624)"
 
@@ -155,52 +216,52 @@ if($SecurityFindEventId -gt 0) {
 } elseif ($SecurityFindUser.Length -gt 0) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND Username = '$SecurityFindUser'"
 
-# 
+# Find RDP logins
 } elseif ($SecurityFindRdpLogins) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND LogonType = '10'"
 
+# Find console logins
+} elseif ($SecurityFindConsoleLogins) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND LogonType = '2'"
+
+# Find a specific IP
+} elseif ($SecurityFindIp) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '$SecurityFindIp'"
+
+# Look for potential pass-the-hash
+} elseif ($SecurityNtlmPassTheHash) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 10, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$'"
+
+# Group by NTLM users
+} elseif ($SecurityNtlmGroupByUsers) {
+    $Query = "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$' GROUP BY Username, Domain, LogonType, AuthPackage, Workstation, ProcessName, SourceIP ORDER BY CNT DESC"
+
+# Group by username logon count
+} elseif ($SecurityGroupByUsers) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 5, '|') as Username, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Username NOT LIKE '%$' GROUP BY Username ORDER BY CNT DESC"
+
+# Group by domain logon count
+} elseif ($SecurityGroupByDomain) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 6, '|') as Domain, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY Domain ORDER BY CNT DESC"
+
+# Group by authentication package logon count
+} elseif ($SecurityGroupyByAuthenticationPackage) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 9, '|') as AuthPackage, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY AuthPackage ORDER BY CNT DESC"
+
+# Group by login type logon count
+} elseif ($SecurityGroupyByLoginType) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 8, '|') as LogonType, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY LogonType ORDER BY CNT DESC"
+
+# Group by workstation name logon count
+} elseif ($SecurityGroupByWorkstationName) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 11, '|') as Workstation, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY Workstation ORDER BY CNT DESC"
+
+# Group by process name logon count
+} elseif ($SecurityGroupyByProcessName) {
+    $Query = "SELECT EXTRACT_TOKEN(Strings, 17, '|') as ProcName, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY ProcName ORDER BY CNT DESC"
+
 # 
 } <#elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
-    $Query = 
-
-# 
-} elseif () {
     $Query = 
 
 # 
@@ -243,45 +304,6 @@ if($RunQuery) {
 
 
 <#
-
-# Find RDP logons
-& 
-
-# Find console logons
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND LogonType = '2'"
-
-# Find specific IP
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '10.1.47.151'"
-
-
-# look at NTLM based logons 
-# possible pass-the-hash 
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 10, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$'"
-
-# group by NTLM users
-& 'C:\Program Files (x86)\Log Parser 2.2\LogParser.exe' -q:ON -stats:OFF -i:EVT -q:ON -o:CSV "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$' GROUP BY Username, Domain, LogonType, AuthPackage, Workstation, ProcessName, SourceIP ORDER BY CNT DESC"
-
-
-# group by users
-& "SELECT EXTRACT_TOKEN(Strings, 5, '|') as Username, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Username NOT LIKE '%$' GROUP BY Username ORDER BY CNT DESC"
-
-# group by domain 
-& "SELECT EXTRACT_TOKEN(Strings, 6, '|') as Domain, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY Domain ORDER BY CNT DESC"
-
-# group by authpackage
-& "SELECT EXTRACT_TOKEN(Strings, 9, '|') as AuthPackage, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY AuthPackage ORDER BY CNT DESC"
-
-# group by LogonType
-& "SELECT EXTRACT_TOKEN(Strings, 8, '|') as LogonType, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY LogonType ORDER BY CNT DESC"
-
-# group by workstation name 
-& "SELECT EXTRACT_TOKEN(Strings, 11, '|') as Workstation, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY Workstation ORDER BY CNT DESC"
-
-# group by process name 
-& "SELECT EXTRACT_TOKEN(Strings, 17, '|') as ProcName, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY ProcName ORDER BY CNT DESC"
-
-#
-
 # Event id 4625
 # unsuccessful logon
 & "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY')"
