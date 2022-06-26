@@ -13,26 +13,48 @@
     The Security event log was cleared (1102).
 .PARAMETER SecuritySuccessfulLogon
     Successful logon (4624)
-.PARAMETER SecurityFindUser
-    Find a specfic user account
-.PARAMETER SecurityFindRdpLogins
-    Find RDP login events in the Security log (type 10)
-.PARAMETER SecurityFindConsoleLogins
-    Find console login events in the Security log (type 2)
-.PARAMETER SecurityFindIp
-    Find a specific login IP address
+.PARAMETER SecurityUnsuccessfulLogon
+    Unsuccessful logon (4625)
+.PARAMETER SecuritySuccessfulLogoff
+    Successful logoff (4634)
+.PARAMETER SecuritySuccessfulLogonFindUser
+    Find a specfic user account (successful logon 4624)
+.PARAMETER SecuritySuccessfulLogonFindRdpLogins
+    Find RDP login events in the Security log, type 10 (successful logon 4624)
+.PARAMETER SecuritySuccessfulLogonFindConsoleLogins
+    Find console login events in the Security log, type 2 (successful logon 4624)
+.PARAMETER SecuritySuccessfulLogonFindIp
+    Find a specific login IP address (successful logon 4624)
+.PARAMETER SecurityUnsuccessfulLogonFindIp
+    Find a specific login IP address (unsuccessful logon 4625)
 .PARAMETER SecurityNtlmPassTheHash
     Potential evidence of pass-the-hash
-.PARAMETER SecurityNtlmGroupByUsers
-    Group by NTLM users
-.PARAMETER SecurityGroupByUsers
-    Group by NTLM username logon count
+.PARAMETER SuccessfulLogonNtlmGroupByUsername
+    Successful NTLM logon attempts, NTLMSSP, group by NTLM username (4624)
+.PARAMETER SecurityUnsuccessfulLogonNtlmGroupByUsername
+    uNSuccessful NTLM logon attempts, NTLMSSP, group by NTLM username (4625)
+.PARAMETER SecurityUnsuccessfulLogonNtlm
+    Failed NTLM logon attempts, NTLMSSP (4625)
+.PARAMETER SecurityLogonCountGroupByUsername
+    Group by username logon count
+.PARAMETER SecurityLogoffCountGroupByUsername
+    Group by username logoff count
 .PARAMETER SecurityGroupByDomain
     Group by domain logon count
 .PARAMETER SecurityGroupyByAuthenticationPackage
     Group by authentication package logon count
 .PARAMETER SecurityGroupyByLoginType
     Group by login type logon count
+.PARAMETER SecurityExplicitLogonCredsUsed
+    Explicit logon credentials were used (4648)
+.PARAMETER SecurityExplicitLogonFindAccountName
+    Find the account name used for explicit logon credentials (4648)
+.PARAMETER SecurityExplicitLogonFindUsedAccount
+    Find the used account for the explicit logon credentials (4648)
+.PARAMETER SecurityExplicitLogonGroupByAccountName
+    Explicit logon credentials (4648) grouped by account name
+.PARAMETER SecurityExplicitLogonGroupByUsedAccount
+    Explicit logon credentials (4648) grouped by used account
 .PARAMETER SecurityGroupyByWorkstationName
     Group by workstation name logon count
 .PARAMETER SecurityGroupyByProcessName
@@ -46,10 +68,10 @@
     
     As of this writing the latest version of LogParser.exe version 2.2 can be download from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 
-    Version 1.0.1
+    Version 1.0.2
     Sam Pursglove
     expOse (all LogParser.exe SQL queries)
-    Last modified: 22 June 2022
+    Last modified: 24 June 2022
 #>
 
 [CmdletBinding(DefaultParameterSetName='FindEventId')]
@@ -70,33 +92,61 @@ param (
     [Switch]
     $SecuritySuccessfulLogon,
 
-    [Parameter(ParameterSetName='FindUser', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific user')]
-    [String]
-    $SecurityFindUser,
-
-    [Parameter(ParameterSetName='FindRdpLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find RDP login events in the security log (type 10)')]
+    [Parameter(ParameterSetName='UnsuccessfulLogon', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Unsuccessful logon (4625)')]
     [Switch]
-    $SecurityFindRdpLogins,
+    $SecurityUnsuccessfulLogon,
 
-    [Parameter(ParameterSetName='FindConsoleLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find console login events in the security log (type 2)')]
+    [Parameter(ParameterSetName='SuccessfulLogoff', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Successful logoff (4634)')]
     [Switch]
-    $SecurityFindConsoleLogins,
+    $SecuritySuccessfulLogoff,
 
-    [Parameter(ParameterSetName='FindIp', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific IP address')]
+    [Parameter(ParameterSetName='SuccessfulLogonFindUser', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific user (successful logon 4624)')]
     [String]
-    $SecurityFindIp,
+    $SecuritySuccessfulLogonFindUser,
+
+    [Parameter(ParameterSetName='UnsuccessfulLogonFindUser', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific user (unsuccessful logon 4625)')]
+    [String]
+    $SecurityUnsuccessfulLogonFindUser,
+
+    [Parameter(ParameterSetName='SuccessfulLogonFindRdpLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find RDP login events in the security log, type 10 (successful logon 4624)')]
+    [Switch]
+    $SecuritySuccessfulLogonFindRdpLogins,
+
+    [Parameter(ParameterSetName='SuccessfulLogonFindConsoleLogins', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find console login events in the security log, type 2 (successful logon 4624)')]
+    [Switch]
+    $SecuritySuccessfulLogonFindConsoleLogins,
+
+    [Parameter(ParameterSetName='SuccessfulLogonFindIp', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific IP address (successful logon 4624)')]
+    [String]
+    $SecuritySuccessfulLogonFindIp,
+
+    [Parameter(ParameterSetName='UnsuccessfulLogonFindIp', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Find a specific IP address (unsuccessful logon 4625)')]
+    [String]
+    $SecurityUnsuccessfulLogonFindIp,
 
     [Parameter(ParameterSetName='NtlmPassTheHash', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Look for potential evidence of pass-the-hash')]
     [Switch]
     $SecurityNtlmPassTheHash,
 
-    [Parameter(ParameterSetName='NtlmGroupByUsers', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by NTLM username')]
+    [Parameter(ParameterSetName='SuccessfulLogonNtlmGroupByUsername', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Successful NTLM logon attemps, NTLMSSP, group by NTLM username (4624)')]
     [Switch]
-    $SecurityNtlmGroupByUsers,
+    $SecuritySuccessfulLogonNtlmGroupByUsername,
 
-    [Parameter(ParameterSetName='GroupByUsers', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by username logon count')]
+    [Parameter(ParameterSetName='UnsuccessfulLogonNtlmGroupByUsername', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Unsuccessful NTLM logon attemps, NTLMSSP, group by NTLM username (4625)')]
     [Switch]
-    $SecurityGroupByUsers,
+    $SecurityUnsuccessfulLogonNtlmGroupByUsername,
+
+    [Parameter(ParameterSetName='UnsuccessfulLogonNtlm', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Failed NTLM logon attempts, NTLMSSP (4625)')]
+    [Switch]
+    $SecurityUnsuccessfulLogonNtlm,
+
+    [Parameter(ParameterSetName='LogonCountGroupByUsername', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by username logon count')]
+    [Switch]
+    $SecurityLogonCountGroupByUsername,
+
+    [Parameter(ParameterSetName='LogoffCountGroupByUsername', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by username logoff count')]
+    [Switch]
+    $SecurityLogoffCountGroupByUsername,
 
     [Parameter(ParameterSetName='GroupByDomain', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by domain logon count')]
     [Switch]
@@ -117,6 +167,26 @@ param (
     [Parameter(ParameterSetName='GroupByProcessName', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Group by process name logon count')]
     [Switch]
     $SecurityGroupyByProcessName,
+
+    [Parameter(ParameterSetName='ExplicitLogonCredsUsed', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Explicit logon credentials were used (4648)')]
+    [Switch]
+    $SecurityExplicitLogonCredsUsed,
+
+    [Parameter(ParameterSetName='ExplicitLogonFindAccountName', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Explicit logon credentials were used find the account name (4648)')]
+    [String]
+    $SecurityExplicitLogonFindAccountName,
+
+    [Parameter(ParameterSetName='ExplicitLogonFindUsedAccount', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Explicit logon credentials were used find the used account (4648)')]
+    [String]
+    $SecurityExplicitLogonFindUsedAccount,
+
+    [Parameter(ParameterSetName='ExplicitLogonGroupByAccountName', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Explicit logon credentials were used (4648), group by account name')]
+    [Switch]
+    $SecurityExplicitLogonGroupByAccountName,
+
+    [Parameter(ParameterSetName='ExplicitLogonGroupByUsedAccount', Mandatory=$True, ValueFromPipeline=$False, HelpMessage='Explicit logon credentials were used (4648), group by used account')]
+    [Switch]
+    $SecurityExplicitLogonGroupByUsedAccount,
 
     [Parameter(Mandatory=$False, ValueFromPipeline=$False, HelpMessage='The evtx log file path')]
     [String]
@@ -212,33 +282,61 @@ if($SecurityFindEventId -gt 0) {
 } elseif ($SecuritySuccessfulLogon) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY')"
 
-# Find user
-} elseif ($SecurityFindUser.Length -gt 0) {
-    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND Username = '$SecurityFindUser'"
+# Unsuccessful logon (4625)
+} elseif ($SecurityUnsuccessfulLogon) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY')"
 
-# Find RDP logins
-} elseif ($SecurityFindRdpLogins) {
+# Successful logoff (4634)
+} elseif ($SecuritySuccessfulLogoff) {
+    $Query = "Select TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 1, '|') AS Username, EXTRACT_TOKEN(Strings, 2, '|') AS Domain FROM $SecurityEventLog WHERE EventID = 4634 AND Domain NOT IN ('NT AUTHORITY')"
+
+# Find user (successful logon)
+} elseif ($SecuritySuccessfulLogonFindUser.Length -gt 0) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND Username = '$SecuritySuccessfulLogonFindUser'"
+             
+# Find user (unsuccessful logon)
+} elseif ($SecurityUnsuccessfulLogonFindUser.Length -gt 0) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND Username = '$SecurityUnsuccessfulLogonFindUser'"
+             
+# Find RDP logins (successful logon)
+} elseif ($SecuritySuccessfulLogonFindRdpLogins) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND LogonType = '10'"
 
-# Find console logins
-} elseif ($SecurityFindConsoleLogins) {
+# Find console logins (successful logon)
+} elseif ($SecuritySuccessfulLogonFindConsoleLogins) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND LogonType = '2'"
 
-# Find a specific IP
-} elseif ($SecurityFindIp) {
-    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '$SecurityFindIp'"
+# Find a specific IP (successful logon)
+} elseif ($SecuritySuccessfulLogonFindIp) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType,EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '$SecuritySuccessfulLogonFindIp'"
 
-# Look for potential pass-the-hash
+# Find a specific IP (unsuccessful logon)
+} elseif ($SecurityUnsuccessfulLogonFindIp) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '$SecurityUnsuccessfulLogonFindIp'"
+
+# !!!!Untested!!!! Look for potential pass-the-hash
 } elseif ($SecurityNtlmPassTheHash) {
     $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 10, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$'"
 
-# Group by NTLM users
-} elseif ($SecurityNtlmGroupByUsers) {
+# !!!!Untested!!!! Successful NTLM logon attempts, NTLMSSP, group by username
+} elseif ($SecuritySuccessfulLogonNtlmGroupByUsername) {
     $Query = "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 8, '|') as LogonType, EXTRACT_TOKEN(strings, 9, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 11, '|') AS Workstation, EXTRACT_TOKEN(Strings, 17, '|') AS ProcessName, EXTRACT_TOKEN(Strings, 18, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$' GROUP BY Username, Domain, LogonType, AuthPackage, Workstation, ProcessName, SourceIP ORDER BY CNT DESC"
 
+# !!!!Untested!!!! Unsuccessful NTLM logon attempts, NTLMSSP, group by username
+} elseif ($SecurityUnsuccessfulLogonNtlmGroupByUsername) {
+    $Query = "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$' GROUP BY Username, Domain, LogonType, AuthPackage, Workstation, SourceIP ORDER BY CNT DESC"
+
+# !!!!Untested!!!! Failed NTLM logon attempts, NTLMSSP
+} elseif ($SecurityUnsuccessfulLogonNtlm) {
+    $Query = "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType, EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$'"
+
 # Group by username logon count
-} elseif ($SecurityGroupByUsers) {
+} elseif ($SecurityLogonCountGroupByUsername) {
     $Query = "SELECT EXTRACT_TOKEN(Strings, 5, '|') as Username, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Username NOT LIKE '%$' GROUP BY Username ORDER BY CNT DESC"
+
+# Group by username logoff count
+} elseif ($SecurityLogoffCountGroupByUsername) {
+    $Query = "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Username NOT LIKE '%$' GROUP BY Username ORDER BY CNT DESC"
 
 # Group by domain logon count
 } elseif ($SecurityGroupByDomain) {
@@ -259,6 +357,26 @@ if($SecurityFindEventId -gt 0) {
 # Group by process name logon count
 } elseif ($SecurityGroupyByProcessName) {
     $Query = "SELECT EXTRACT_TOKEN(Strings, 17, '|') as ProcName, COUNT(*) AS CNT FROM $SecurityEventLog WHERE EventID = 4624 GROUP BY ProcName ORDER BY CNT DESC"
+
+# Explicit logon credentials were used (4648)
+} elseif ($SecurityExplicitLogonCredsUsed) {
+    $Query = "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648"
+
+# !!!!Check this query!!!! Explicit logon credentials were used (4648), find the account name
+} elseif ($SecurityExplicitLogonFindAccountName) {
+    $Query = "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648 AND accountname = '$SecurityExplicitLogonFindAccountName'"
+
+# Explicit logon credentials were used (4648), find the used account
+} elseif ($SecurityExplicitLogonFindUsedAccount) {
+    $Query = "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648 AND usedaccount = '$SecurityExplicitLogonFindUsedAccount'"
+
+# Group explicit logon credentaials by account name (4648)
+} elseif ($SecurityExplicitLogonGroupByAccountName) {
+    $Query = "SELECT COUNT(*) as CNT, extract_token(strings, 1, '|') as accountname FROM $SecurityEventLog WHERE EventID = 4648 GROUP BY accountname ORDER BY CNT DESC"
+
+# Group explicit logon credentaials by used account (4648)
+} elseif ($SecurityExplicitLogonGroupByUsedAccount) {
+    $Query = "SELECT COUNT(*) as CNT, extract_token(strings, 5, '|') as usedaccount FROM $SecurityEventLog WHERE EventID = 4648 GROUP BY usedaccount ORDER BY CNT DESC"
 
 # 
 } <#elseif () {
@@ -288,7 +406,6 @@ if($SecurityFindEventId -gt 0) {
 } elseif () {
     $Query = 
 
-# 
 } 
 
 #>
@@ -304,48 +421,15 @@ if($RunQuery) {
 
 
 <#
-# Event id 4625
-# unsuccessful logon
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY')"
-
-# Find specific User
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND Username = 'Administrator'"
-
-
-# Find specific IP
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND SourceIP = '10.1.47.151'"
-
-# check ntlm based attempts
-& "SELECT TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType, EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$'"
-
-# group by ntlm users
-& "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username, EXTRACT_TOKEN(Strings, 6, '|') as Domain, EXTRACT_TOKEN(Strings, 10, '|') as LogonType,EXTRACT_TOKEN(strings, 11, '|') AS AuthPackage, EXTRACT_TOKEN(Strings, 13, '|') AS Workstation, EXTRACT_TOKEN(Strings, 19, '|') AS SourceIP FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Domain NOT IN ('NT AUTHORITY') AND AuthPackage LIKE '%NtLmSsp%' AND Username NOT LIKE '%$' GROUP BY Username, Domain, LogonType, AuthPackage, Workstation, SourceIP ORDER BY CNT DESC"
-
-# group by Username
-& "SELECT COUNT(*) AS CNT, EXTRACT_TOKEN(Strings, 5, '|') as Username FROM $SecurityEventLog WHERE EventID = 4625 AND Username NOT IN ('SYSTEM'; 'ANONYMOUS LOGON'; 'LOCAL SERVICE'; 'NETWORK SERVICE') AND Username NOT LIKE '%$' GROUP BY Username ORDER BY CNT DESC"
-
-
-# event id 4634
-# user logoff
-
-& "Select TimeGenerated AS Date, EXTRACT_TOKEN(Strings, 1, '|') AS Username, EXTRACT_TOKEN(Strings, 2, '|') AS Domain FROM $SecurityEventLog WHERE EventID = 4634 AND Domain NOT IN ('NT AUTHORITY')"
-
-
-# Event id 4648
-# explicit creds was used
-& "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648"
-
 # Search by accountname
-& "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648 AND accountname = 'Administrator'"
+& ??????
 
-# Search by usedaccount
-& "SELECT timegenerated as date, extract_token(strings, 1, '|') as accountname, extract_token(strings, 2, '|') as domain, extract_token(strings, 5, '|') as usedaccount, extract_token(strings, 6, '|') as useddomain, extract_token(strings, 8, '|') as targetserver, extract_token(strings, 9, '|') as extradata, extract_token(strings, 11, '|') as procname, extract_token(strings, 12, '|') as sourceip FROM $SecurityEventLog WHERE EventID = 4648 AND usedaccount = 'Administrator'"
 
 # group by accountname
-& "SELECT COUNT(*) as CNT, extract_token(strings, 1, '|') as accountname FROM $SecurityEventLog WHERE EventID = 4648 GROUP BY accountname ORDER BY CNT DESC"
+& 
 
 # group by used account
-& "SELECT COUNT(*) as CNT, extract_token(strings, 5, '|') as usedaccount FROM $SecurityEventLog WHERE EventID = 4648 GROUP BY usedaccount ORDER BY CNT DESC"
+& 
 
 # event id 4657
 # A registry value was modified
